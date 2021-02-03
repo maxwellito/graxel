@@ -105,7 +105,6 @@
     // User input
     let switchPixelStack = [];
     function switchPixel(e) {
-      console.log(e.type);
       e.preventDefault();
       if (e.type === 'mousedown') {
         svg.addEventListener('mousemove', switchPixel);
@@ -148,14 +147,18 @@
             pixel.classList.remove('on');
           }
         });
+      window.location.hash = buffer;
     }
 
     // Make the CANVAS baby!
     function buildPNG() {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
       const pixelSize = 50;
 
+      const canvas = document.createElement('canvas');
+      canvas.width = (width + 6) * pixelSize;
+      canvas.height = (height + 6) * pixelSize;
+
+      const ctx = canvas.getContext('2d');
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, (width + 6) * pixelSize, (height + 6) * pixelSize);
 
@@ -173,16 +176,22 @@
           pixelSize
         );
       });
-      canvas.toDataURL();
 
-      const blob = new Blob([canvas.toDataURL()], { type: 'image/png' });
-      return new File([blob], 'gravel.png', { type: 'image/png' });
+      return new Promise((res) => {
+        canvas.toBlob((blob) => {
+          const file = new File([blob], 'graxel.png', { type: 'image/png' });
+          res(file);
+        });
+      });
+      // canvas.toDataURL();
+
+      // const blob = new Blob([canvas.toDataURL()], { type: 'image/png' });
+      // return new File([blob], 'graxel.png', { type: 'image/png' });
     }
 
     // Actions
     function reset() {
       if (window.confirm('Are you sure to reset?')) {
-        console.log('Yup');
         applyHash('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
       }
     }
@@ -195,17 +204,25 @@
     }
 
     function share() {
-      const file = buildPNG();
-      if (
-        navigator.canShare &&
-        navigator.canShare({
-          files: [file],
-        })
-      ) {
-        navigator.share({
-          files: [file],
-        });
+      if (!navigator.canShare) {
+        return;
       }
+      buildPNG().then((file) => {
+        const basicShare = {
+          url: window.location.toString(),
+          title: 'graxel',
+          text: 'graxel is a pocket pixel editor to doodle and relax.',
+        };
+        const fullShare = {
+          ...basicShare,
+          files: [file],
+        };
+        if (navigator.canShare(fullShare)) {
+          navigator.share(fullShare);
+        } else if (navigator.canShare(basicShare)) {
+          navigator.share(basicShare);
+        }
+      });
     }
 
     // Cheap and shameful binary manipulation (yoloverflow edition)
