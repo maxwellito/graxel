@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>graxel</title>
+    <meta name="theme-color" content="#000000" />
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        background-color: black;
+      }
+
+      rect.on {
+        fill: white;
+      }
+      .actions {
+        display: flex;
+        flex-direction: inherits;
+        margin-top: 3rem;
+      }
+      button {
+        background: #fff1;
+        border: none;
+        width: 8ch;
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo,
+          monospace;
+        text-transform: lowercase;
+        margin: 1px;
+        color: white;
+        text-align: center;
+        padding: 0;
+      }
+      button:focus {
+        outline: 1px dotted;
+      }
+    </style>
+  </head>
+  <body>
+    <svg></svg>
+    <div class="actions">
+      <button onclick="reset()">RESET</button
+      ><button onclick="random()">RANDOM</button
+      ><button onclick="share()">SHARE</button>
+    </div>
+  </body>
+  <script>
+    const width = 21;
+    const height = 21;
+    const squareSize = 10;
+
+    const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+
+    const svg = document.body.querySelector('svg'); //document.createElementNS(SVG_NAMESPACE, 'svg');
+    svg.setAttribute(
+      'viewBox',
+      `0 0 ${width * squareSize} ${height * squareSize}`
+    );
+
+    // Find the pixel perfect ratio
+    function resize() {
+      const smallAxis = Math.min(innerHeight, innerWidth);
+      const scale = Math.round((smallAxis * 0.8) / width);
+      svg.style.width = `${scale * width}px`;
+      svg.style.height = `${scale * height}px`;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Listen to draw
+    svg.addEventListener('touchstart', switchPixel);
+    svg.addEventListener('touchmove', switchPixel);
+    svg.addEventListener('touchend', clearSwitchPixel);
+    svg.addEventListener('mousedown', switchPixel);
+    svg.addEventListener('mouseup', clearSwitchPixel);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const square = document.createElementNS(SVG_NAMESPACE, 'rect');
+        square.setAttribute('width', squareSize);
+        square.setAttribute('height', squareSize);
+        square.setAttribute('x', x * squareSize);
+        square.setAttribute('y', y * squareSize);
+
+        if (x % 2 === 0 && y % 2 === 0) {
+          square.classList.add('on');
+        } else if (x % 2 === 1 && y % 2 === 1) {
+          // Nothing at all
+        } else {
+          square.classList.add('editable');
+        }
+
+        svg.appendChild(square);
+      }
+    }
+
+    // User input
+    let switchPixelStack = [];
+    function switchPixel(e) {
+      console.log(e.type);
+      e.preventDefault();
+      if (e.type === 'mousedown') {
+        svg.addEventListener('mousemove', switchPixel);
+      }
+      const src = (e.touches && e.touches[0]) || e;
+      const { clientX, clientY } = src;
+      const square = document.elementFromPoint(clientX, clientY);
+      if (
+        !square ||
+        !square.classList.contains('editable') ||
+        switchPixelStack.includes(square)
+      ) {
+        return;
+      }
+      square.classList.toggle('on');
+      switchPixelStack.push(square);
+    }
+    function clearSwitchPixel() {
+      switchPixelStack = [];
+      updateHash();
+      svg.removeEventListener('mousemove', switchPixel);
+    }
+
+    // Hash
+    function updateHash() {
+      const binaryMap = Array.from(svg.childNodes)
+        .filter((pixel) => pixel.classList.contains('editable'))
+        .map((pixel) => pixel.classList.contains('on'));
+      window.location.hash = encodeHash(binaryMap);
+    }
+
+    function applyHash(buffer) {
+      const binaryMap = decodeHash(buffer);
+      Array.from(svg.childNodes)
+        .filter((pixel) => pixel.classList.contains('editable'))
+        .map((pixel, i) => {
+          if (binaryMap[i]) {
+            pixel.classList.add('on');
+          } else {
+            pixel.classList.remove('on');
+          }
+        });
+    }
+
+    // Make the CANVAS baby!
+    function buildPNG() {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const pixelSize = 50;
+
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, (width + 6) * pixelSize, (height + 6) * pixelSize);
+
+      ctx.fillStyle = 'white';
+      Array.from(svg.childNodes).forEach((pixel, i) => {
+        if (!pixel.classList.contains('on')) {
+          return;
+        }
+        const x = i % width;
+        const y = Math.floor(i / width);
+        ctx.fillRect(
+          (x + 3) * pixelSize,
+          (y + 3) * pixelSize,
+          pixelSize,
+          pixelSize
+        );
+      });
+      canvas.toDataURL();
+
+      const blob = new Blob([canvas.toDataURL()], { type: 'image/png' });
+      return new File([blob], 'gravel.png', { type: 'image/png' });
+    }
+
+    // Actions
+    function reset() {
+      if (window.confirm('Are you sure to reset?')) {
+        console.log('Yup');
+        applyHash('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+      }
+    }
+
+    function random() {
+      const randomHash = Array.from(Array(37))
+        .map(() => z[Math.floor(Math.pow(Math.random(), 3) * 64)])
+        .join('');
+      applyHash(randomHash);
+    }
+
+    function share() {
+      const file = buildPNG();
+      if (
+        navigator.canShare &&
+        navigator.canShare({
+          files: [file],
+        })
+      ) {
+        navigator.share({
+          files: [file],
+        });
+      }
+    }
+
+    // Cheap and shameful binary manipulation (yoloverflow edition)
+    const z =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+    function encodeHash(bArray) {
+      let buffer = '';
+      while (bArray.length) {
+        const chunk = bArray.splice(0, 6);
+        buffer +=
+          z[chunk.reduce((acc, v, i) => acc + (!!v && Math.pow(2, 5 - i)), 0)];
+      }
+      return buffer;
+    }
+
+    function decodeHash(sArray) {
+      return Array.from(sArray)
+        .map((c) => (z.indexOf(c) >>> 0).toString(2).padStart(6, '0'))
+        .join('')
+        .split('')
+        .map((e) => (e === '0' ? 0 : 1));
+    }
+
+    // Start the magic, kind of
+    if (window.location.hash) {
+      applyHash(window.location.hash.substr(1));
+    }
+  </script>
+</html>
