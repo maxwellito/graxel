@@ -33,7 +33,6 @@
         width: 8ch;
         font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo,
           monospace;
-        text-transform: lowercase;
         margin: 1px;
         color: white;
         text-align: center;
@@ -47,30 +46,29 @@
   <body>
     <svg></svg>
     <div class="actions">
-      <button onclick="reset()">RESET</button
-      ><button onclick="random()">RANDOM</button
-      ><button onclick="share()">SHARE</button>
+      <button onclick="reset()">reset</button
+      ><button onclick="random()" ondblclick="easterEgg()">random</button
+      ><button onclick="share()">share</button>
     </div>
   </body>
   <script>
-    const width = 21;
-    const height = 21;
-    const squareSize = 10;
+    const squareSize = 21; // Amount of pixel in the canvas
+    const pixelSize = 10;  // Size of a pixel
 
     const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
-    const svg = document.body.querySelector('svg'); //document.createElementNS(SVG_NAMESPACE, 'svg');
+    const svg = document.body.querySelector('svg');
     svg.setAttribute(
       'viewBox',
-      `0 0 ${width * squareSize} ${height * squareSize}`
+      `0 0 ${squareSize * pixelSize} ${squareSize * pixelSize}`
     );
 
     // Find the pixel perfect ratio
     function resize() {
       const smallAxis = Math.min(innerHeight, innerWidth);
-      const scale = Math.round((smallAxis * 0.8) / width);
-      svg.style.width = `${scale * width}px`;
-      svg.style.height = `${scale * height}px`;
+      const scale = Math.round((smallAxis * 0.8) / squareSize);
+      svg.style.width = `${scale * squareSize}px`;
+      svg.style.height = `${scale * squareSize}px`;
     }
     window.addEventListener('resize', resize);
     resize();
@@ -82,13 +80,13 @@
     svg.addEventListener('mousedown', switchPixel);
     svg.addEventListener('mouseup', clearSwitchPixel);
 
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
+    for (let y = 0; y < squareSize; y++) {
+      for (let x = 0; x < squareSize; x++) {
         const square = document.createElementNS(SVG_NAMESPACE, 'rect');
-        square.setAttribute('width', squareSize);
-        square.setAttribute('height', squareSize);
-        square.setAttribute('x', x * squareSize);
-        square.setAttribute('y', y * squareSize);
+        square.setAttribute('width', pixelSize);
+        square.setAttribute('height', pixelSize);
+        square.setAttribute('x', x * pixelSize);
+        square.setAttribute('y', y * pixelSize);
 
         if (x % 2 === 0 && y % 2 === 0) {
           square.classList.add('on');
@@ -155,20 +153,20 @@
       const pixelSize = 50;
 
       const canvas = document.createElement('canvas');
-      canvas.width = (width + 6) * pixelSize;
-      canvas.height = (height + 6) * pixelSize;
+      canvas.width = (squareSize + 6) * pixelSize;
+      canvas.height = (squareSize + 6) * pixelSize;
 
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, (width + 6) * pixelSize, (height + 6) * pixelSize);
+      ctx.fillRect(0, 0, (squareSize + 6) * pixelSize, (squareSize + 6) * pixelSize);
 
       ctx.fillStyle = 'white';
       Array.from(svg.childNodes).forEach((pixel, i) => {
         if (!pixel.classList.contains('on')) {
           return;
         }
-        const x = i % width;
-        const y = Math.floor(i / width);
+        const x = i % squareSize;
+        const y = Math.floor(i / squareSize);
         ctx.fillRect(
           (x + 3) * pixelSize,
           (y + 3) * pixelSize,
@@ -183,29 +181,48 @@
           res(file);
         });
       });
-      // canvas.toDataURL();
-
-      // const blob = new Blob([canvas.toDataURL()], { type: 'image/png' });
-      // return new File([blob], 'graxel.png', { type: 'image/png' });
     }
 
     // Actions
     function reset() {
-      if (window.confirm('Are you sure to reset?')) {
-        applyHash('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
-      }
+      applyHash('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
     }
 
-    function random() {
-      const randomHash = Array.from(Array(37))
-        .map(() => z[Math.floor(Math.pow(Math.random(), 3) * 64)])
-        .join('');
-      applyHash(randomHash);
+    function random () {
+      const pilar = Math.ceil(squareSize / 2);
+      const matrix = Array.from(Array(21)).map(() => [])
+      for (let y = 0; y < pilar; y++) {
+        for (let x = 0; x <= y; x++) {
+          const val = Math.round(Math.random())
+          matrix[y][x] = val;
+          matrix[y][squareSize - 1 -x] = val;
+          matrix[squareSize - 1 -y][x] = val;
+          matrix[squareSize - 1 -y][squareSize - 1 -x] = val;
+          matrix[x][y] = val;
+          matrix[squareSize - 1 -x][y] = val;
+          matrix[x][squareSize - 1 - y] = val;
+          matrix[squareSize - 1 -x][squareSize - 1 -y] = val;
+        }
+      }
+      matrix.flat().forEach((val, i) => {
+        const pixel = svg.childNodes[i];
+        if (!pixel) {
+          debugger;
+        }
+        if (pixel.classList.contains('editable')) {
+          if (val) {
+            pixel.classList.add('on');
+          } else {
+            pixel.classList.remove('on');
+          }
+        }
+      });
+      updateHash();
     }
 
     function share() {
       if (!navigator.canShare) {
-        return;
+        return alert("Sorry, your browser isn't compatible.\nPlease share the URL manually.");
       }
       buildPNG().then((file) => {
         const basicShare = {
@@ -250,6 +267,39 @@
     // Start the magic, kind of
     if (window.location.hash) {
       applyHash(window.location.hash.substr(1));
+    }
+
+
+    // Easter Egg
+    let randomLoopId;
+    function easterEgg () {
+      if (randomLoopId) {
+        clearTimeout(randomLoopId);
+        randomLoopId = 0;
+      } else {
+        randomLoop();
+      }
+    }
+
+    function randomLoop () {
+      let pixel, y, x;
+      const pilar = Math.ceil(squareSize / 2);
+
+      while(!pixel || !pixel.classList.contains('editable')) {
+        y = Math.floor(Math.random() * pilar);
+        x = Math.floor(Math.random() * y);
+        pixel = svg.childNodes[y*squareSize + x];
+      }
+      svg.childNodes[y * squareSize + x].classList.toggle('on');
+      svg.childNodes[y * squareSize + squareSize - 1 -x].classList.toggle('on');
+      svg.childNodes[(squareSize - 1 - y) * squareSize + x].classList.toggle('on');
+      svg.childNodes[(squareSize - 1 - y) * squareSize + squareSize - 1 - x].classList.toggle('on');
+      svg.childNodes[x * squareSize + y].classList.toggle('on');
+      svg.childNodes[(squareSize - 1 - x) * squareSize + y].classList.toggle('on');
+      svg.childNodes[x * squareSize + squareSize - 1 - y].classList.toggle('on');
+      svg.childNodes[(squareSize - 1 - x) * squareSize + squareSize - 1 - y].classList.toggle('on');
+
+      randomLoopId = setTimeout(randomLoop, 100);
     }
   </script>
 </html>
